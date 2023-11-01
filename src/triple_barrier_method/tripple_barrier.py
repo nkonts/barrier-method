@@ -166,6 +166,16 @@ class TripleBarrierMethod:
 
     @property
     def transition_probabilities(self) -> pd.DataFrame:
+        """
+        Computes the transition probabilities between the different labels by dividing the frequency of transitions 
+        by the total count in each state.
+
+        Raises:
+        AttributeError: If the 'labels' attribute has not been calculated yet. Run .labels to compute it.
+
+        Returns:
+        pd.DataFrame: A DataFrame containing transition probabilities between different states in the dataset.
+        """
         if self._labels is None:
             raise AttributeError("The attribute 'labels' have not been calculated yet. Run .labels")
         transition_counts = self.labels.groupby([self.labels.rename("From"), self.labels.shift(-1).rename("To")]).size()
@@ -177,14 +187,31 @@ class TripleBarrierMethod:
         transition_probas.columns = transition_probas.columns.astype(int)
         return transition_probas
 
-    def plot_at_date(self, date: str, months=3, figsize=(12,3)):
+    def plot_at_date(self, date: str, months=3, figsize=(12,3)) -> None:
+        """
+        Plots the Triple Barrier Method for a specified date.
+
+        Args:
+        date (str): The specific date in string format ('YYYY-MM-DD') for which to generate the plot.
+        months (int): Number of months to consider before and after the given date for the plot. Default is 3 months.
+        figsize (tuple): Tuple defining the width and height of the plot. Default is (12, 3).
+
+        Raises:
+        AttributeError: If the 'labels' attribute has not been calculated yet. Run .labels to compute it.
+
+        Returns:
+        None
+        """
         if self._labels is None:
             raise AttributeError("The attribute 'labels' have not been calculated yet. Run .labels")
+        
         date = pd.Timestamp(date)
         start_date = date - pd.DateOffset(months=months)
         end_date = date + pd.DateOffset(months=months)
+
         # Create data to plot
         index = np.cumprod(1 + self.returns.loc[start_date:end_date])
+        # Issue a warning if the selected date is not present in the index
         if date not in index.index:
             warnings.warn_explicit(
                 f"The selected date '{date.strftime('%Y-%m-%d')}' is not inside the attribute 'returns'." + 
@@ -193,6 +220,7 @@ class TripleBarrierMethod:
             )
 
             date = index[date:].index.min()
+        # Normalize data for plotting
         index = index / index.loc[date] * 100
 
         barrier_idx = index.loc[date:].head(self.n).index
