@@ -5,9 +5,9 @@ import matplotlib.dates as mdates
 import warnings
 from .barrier_conditions import BarrierConditions
 
-class TripleBarrierMethod:
+class BarrierMethod:
     """
-    Apply the Triple Barrier Method to financial returns data by Marcos López de Prado.
+    Apply the Barrier Method to financial returns data by Marcos López de Prado.
 
     Attributes:
     returns (pandas.Series): Series of returns.
@@ -67,61 +67,61 @@ class TripleBarrierMethod:
         Returns:
         pandas.DataFrame: Barrier crossing outcomes.
         """
-        triple_barrier = {}
+        barrier = {}
         for label, condition in self.conditions.items():
             # Check if the condition has been met inside the rolling window of cumulative returns,
             # Columns are range(1, n+1) for the cumulative return window
-            triple_barrier[label] = condition(self.cumulative_returns)
+            barrier[label] = condition(self.cumulative_returns)
             # For each barrier, get the first i in range(n) that crossed it.
             # Replace False with np.nan to detect the first crossing by checking for not-missing values
             # columns: [-2, -1, 1, 2] as names for the respective barriers
-            triple_barrier[label] = (triple_barrier[label]
+            barrier[label] = (barrier[label]
                                      .replace(False, np.nan)
                                      .apply(pd.Series.first_valid_index,axis=1)
                                      )
-        return pd.DataFrame(triple_barrier)
+        return pd.DataFrame(barrier)
 
-    def _remove_double_barrier_crossings(self, triple_barrier: pd.DataFrame) -> pd.DataFrame:
+    def _remove_double_barrier_crossings(self, barrier: pd.DataFrame) -> pd.DataFrame:
         """
         Remove double barrier crossings from the barrier outcomes. This happens since to cross
         a 2nd (positive or negative) barrier, their respective 1st barrier needs to have been 
         crossed before.
 
         Args:
-        triple_barrier (pandas.DataFrame): Barrier crossing outcomes.
+        barrier (pandas.DataFrame): Barrier crossing outcomes.
 
         Returns:
         pandas.DataFrame: Updated barrier outcomes.
         """
         if self.n_barriers > 1:
             # Make a copy of the DataFrame be able to check the changes after using this function
-            triple_barrier_filtered = triple_barrier.copy()  
+            barrier_filtered = barrier.copy()  
             for i in range(self.n_barriers, 1, -1):
-                triple_barrier_filtered.loc[triple_barrier[i].notna(), i-1] = np.nan
-                triple_barrier_filtered.loc[triple_barrier[-i].notna(), -i+1] = np.nan
-        return triple_barrier_filtered
+                barrier_filtered.loc[barrier[i].notna(), i-1] = np.nan
+                barrier_filtered.loc[barrier[-i].notna(), -i+1] = np.nan
+        return barrier_filtered
 
-    def _identify_barrier_hit(self, triple_barrier: pd.DataFrame) -> pd.DataFrame:
+    def _identify_barrier_hit(self, barrier: pd.DataFrame) -> pd.DataFrame:
         """
         Identify barrier hits from the barrier outcomes.
 
         Args:
-        triple_barrier (pandas.DataFrame): Barrier crossing outcomes.
+        barrier (pandas.DataFrame): Barrier crossing outcomes.
 
         Returns:
         pandas.DataFrame: Identified barrier hits.
         """
         # .idxmin() returns np.nan if no barriers have been hit 
         # => .fillna(0) labels the "no barrier hit" condition
-        triple_barrier = triple_barrier.idxmin(axis=1).fillna(0).astype(int)
+        barrier = barrier.idxmin(axis=1).fillna(0).astype(int)
         # Correct for a possible look-ahead-bias & errors introduced by .fillna()
-        triple_barrier.iloc[-self.n:] = np.nan
-        return triple_barrier
+        barrier.iloc[-self.n:] = np.nan
+        return barrier
 
     @property
     def labels(self) -> pd.Series:
         """
-        Execute the Triple Barrier Method. Calculating if not already done.
+        Execute the Barrier Method. Calculating if not already done.
 
         Returns:
         pandas.Series: Labeles for each timestep based on barrier hits.
@@ -132,7 +132,7 @@ class TripleBarrierMethod:
 
     def _get_labels(self) -> pd.Series:
         """
-        Execute the Triple Barrier Method.
+        Execute the Barrier Method.
 
         Returns:
         pandas.Series: Labeles for each timestep based on barrier hits.
@@ -143,7 +143,7 @@ class TripleBarrierMethod:
         return labels
 
     def __repr__(self):
-        return f"TripleBarrierMethod(returns, n={self.n}, barrier={self.barrier}, center={self.center})"
+        return f"BarrierMethod(returns, n={self.n}, barrier={self.barrier}, center={self.center})"
 
     @property
     def time_since_last_crossing(self) -> pd.DataFrame:
@@ -189,7 +189,7 @@ class TripleBarrierMethod:
 
     def plot_at_date(self, date: str, months=3, figsize=(12,3)) -> None:
         """
-        Plots the Triple Barrier Method for a specified date.
+        Plots the Barrier Method for a specified date.
 
         Args:
         date (str): The specific date in string format ('YYYY-MM-DD') for which to generate the plot.
@@ -236,7 +236,7 @@ class TripleBarrierMethod:
         aut_formatter = mdates.ConciseDateFormatter(aut_locator)
 
         plt.axhline(100, c="grey", ls="--", lw=0.5)
-        plt.title(f"Triple Barrier Method for {self.returns.name} at {date.strftime('%d %b, %Y')} (label = {int(self.labels.loc[date])})")
+        plt.title(f"Barrier Method for {self.returns.name} at {date.strftime('%d %b, %Y')} (label = {int(self.labels.loc[date])})")
         index.plot(ax=ax)
 
         text_date = barriers.index.max() + pd.DateOffset(1)
