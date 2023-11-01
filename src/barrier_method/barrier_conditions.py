@@ -3,6 +3,21 @@ from dataclasses import dataclass, field
 from typing import Dict, Callable
 
 @dataclass
+class PositiveCondition:
+    factor: float
+    barrier: float
+
+    def evaluate(self, value: float) -> bool:
+        return value > self.factor * self.barrier
+@dataclass
+class NegativeCondition:
+    factor: float
+    barrier: float
+
+    def evaluate(self, value: float) -> bool:
+        return value < -1 * self.factor * self.barrier
+    
+@dataclass
 class BarrierConditions:
     """
     A class that generates and manages barrier conditions used for different labeling techniques.
@@ -34,17 +49,22 @@ class BarrierConditions:
         Generates barrier conditions based on the specified number of conditions and threshold values.
         """
         for i in range(1, self.n+1):
-            self.conditions[-i] = self._negative_condition(i)
-            self.conditions[i] = self._positive_condition(i)
-
-    def _negative_condition(self, i):
-        return lambda x: x < -1*i*self.barrier
-    
-    def _positive_condition(self, i):
-        return lambda x: x > i*self.barrier
+            self.conditions[-i] = NegativeCondition(factor=i, barrier=self.barrier)
+            self.conditions[i]  = PositiveCondition(factor=i, barrier=self.barrier)
 
     def sort_conditions(self):
         """
         Sorts the generated conditions in ascending order based on their keys.
         """
         self.conditions = dict(sorted(self.conditions.items()))
+
+    def __str__(self):
+        """
+        String representation of the BarrierConditions object, showing conditions in a readable format.
+        """
+        condition_strings = []
+        for key, condition in self.conditions.items():
+            condition_strings.append(f"\t{key}: \t{condition}")
+
+        conditions_str = "\n\t".join(condition_strings)
+        return f"BarrierConditions(n={self.n}, barrier={self.barrier}):\n\tConditions={{\n\t{conditions_str}\n\t}}"

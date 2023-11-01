@@ -79,7 +79,7 @@ class BarrierMethod:
         for label, condition in self.conditions.items():
             # Check if the condition has been met inside the rolling window of cumulative returns,
             # Columns are range(1, n+1) for the cumulative return window
-            barrier[label] = condition(self.cumulative_returns)
+            barrier[label] = condition.evaluate(self.cumulative_returns)
             # For each barrier, get the first i in range(n) that crossed it.
             # Replace False with np.nan to detect the first crossing by checking for not-missing values
             # columns: [-2, -1, 1, 2] as names for the respective barriers
