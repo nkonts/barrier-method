@@ -1,5 +1,8 @@
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import warnings
 
 class TripleBarrierMethod:
     """
@@ -145,3 +148,81 @@ class TripleBarrierMethod:
 
     def __repr__(self):
         return f"TripleBarrierMethod(returns, n={self.n}, barrier={self.barrier}, center={self.center})"
+
+    @property
+    def time_since_last_crossing(self) -> pd.DataFrame:
+        """
+        Computes the time elapsed since the last crossing for each barrier in the dataset.
+        This might be a useful feature for models.
+
+        Returns:
+        pd.DataFrame: A DataFrame containing the time since the last crossing for each barrier.
+        """
+        barrier_crossings = self._check_barrier_crossing().shift(self.n)
+        crossing_seen = barrier_crossings.isna()
+        crossing_groups = (crossing_seen != crossing_seen.shift()).cumsum()
+
+        time_since_last_crossing = {}
+        for label in barrier_crossings.columns:
+            time_since_last_crossing[label] = crossing_seen[label].groupby(crossing_groups[label]).cumsum()
+        time_since_last_crossing = pd.DataFrame(time_since_last_crossing)
+        return time_since_last_crossing
+
+    @property
+    def transition_probabilities(self) -> pd.DataFrame:
+        if self._labels is None:
+            raise AttributeError("The attribute 'labels' have not been calculated yet. Run .labels")
+        transition_counts = self.labels.groupby([self.labels.rename("From"), self.labels.shift(-1).rename("To")]).size()
+
+        transition_probas = transition_counts.groupby(level=0).apply(lambda x: x / x.sum())
+        # Bring it into a proper form
+        transition_probas = transition_probas.unstack().droplevel(1).fillna(0)
+        transition_probas.index = transition_probas.index.astype(int)
+        transition_probas.columns = transition_probas.columns.astype(int)
+        return transition_probas
+
+    def plot_at_date(self, date: str, months=3, figsize=(12,3)):
+        date = pd.Timestamp(date)
+        start_date = date - pd.DateOffset(months=months)
+        end_date = date + pd.DateOffset(months=months)
+        # Create data to plot
+        index = np.cumprod(1 + self.returns.loc[start_date:end_date])
+        if date not in index.index:
+            warnings.warn_explicit(
+                f"The selected date '{date.strftime('%Y-%m-%d')}' is not inside the attribute 'returns'." + 
+                f"The next available date is '{index[date:].index.min().strftime('%Y-%m-%d')}'.",
+                UserWarning, "", 1
+            )
+
+            date = index[date:].index.min()
+        index = index / index.loc[date] * 100
+
+        barrier_idx = index.loc[date:].head(self.n).index
+        barriers = pd.concat([
+            pd.Series(100*(1+2*self.barrier), index=barrier_idx).rename(2),
+            pd.Series(100*(1+self.barrier), index=barrier_idx).rename(1),
+            pd.Series(100*(1+-1*self.barrier), index=barrier_idx).rename(-1),
+            pd.Series(100*(1+-2*self.barrier), index=barrier_idx).rename(-2),
+        ], axis=1)
+
+        # Plotting
+        fig, ax = plt.subplots(figsize=figsize)
+
+        aut_locator = mdates.AutoDateLocator(minticks=months*2)
+        aut_formatter = mdates.ConciseDateFormatter(aut_locator)
+
+        plt.axhline(100, c="grey", ls="--", lw=0.5)
+        plt.title(f"Triple Barrier Method for {self.returns.name} at {date.strftime('%d %b, %Y')}")
+        index.plot(ax=ax)
+        barriers[2].plot(ax=ax, c="green")
+        barriers[1].plot(ax=ax, c="lightgreen")
+        plt.plot([barriers.index.min(), barriers.index.min()], [barriers[-2].min(), barriers[2].max()], ls="dotted", c="grey")
+        plt.plot([barriers.index.max(), barriers.index.max()], [barriers[-2].min(), barriers[2].max()], label=0, c="black")
+        barriers[-1].plot(ax=ax, c="lightsalmon")
+        barriers[-2].plot(ax=ax, c="salmon")
+        plt.legend(loc="upper left", bbox_to_anchor=(1, 1), frameon=False)
+        ax.xaxis.set_major_locator(aut_locator)
+        ax.xaxis.set_major_formatter(aut_formatter)
+        ax.set_xlabel(None)
+        plt.xlim(start_date, end_date)
+        plt.show()
