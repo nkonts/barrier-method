@@ -52,7 +52,7 @@ class TripleBarrierMethod:
         pandas.DataFrame: Cumulative returns. Shape: (self.returns.index, n).
         """
         if self._cumulative_returns is None:
-            self._get_cumulative_returns()
+            self._cumulative_returns = self._get_cumulative_returns()
         return self._cumulative_returns
 
     def _get_cumulative_returns(self) -> None:
@@ -63,7 +63,7 @@ class TripleBarrierMethod:
             if self.center:
                 cumulative_returns[i] = cumulative_returns[i] - cumulative_returns[i].expanding().mean()
 
-        self._cumulative_returns = pd.DataFrame(cumulative_returns)
+        return pd.DataFrame(cumulative_returns)
 
     def _check_barrier_crossing(self) -> pd.DataFrame:
         """
@@ -128,7 +128,7 @@ class TripleBarrierMethod:
         pandas.Series: Labeles for each timestep based on barrier hits.
         """
         if self._labels is None:
-            self._get_labels()
+            self._labels = self._get_labels()
         return self._labels
 
     def _get_labels(self) -> pd.Series:
