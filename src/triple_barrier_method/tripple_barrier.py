@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import warnings
+from .barrier_conditions import BarrierConditions
 
 class TripleBarrierMethod:
     """
@@ -17,22 +18,13 @@ class TripleBarrierMethod:
                              Defaults to True.
     """
 
-    def __init__(self, returns: pd.Series, n: int, barrier: float, center: bool = True):
+    def __init__(self, returns: pd.Series, n: int, barrier: float, n_barriers: int=2, center: bool = True):
         self.returns = returns
         self.n = n
         self.barrier = barrier
         self.center = center
-
-        # Use numeric values as labels (keys) to find the minimum later.
-        self.conditions = {
-            # Negative barriers
-            -2: lambda x: (x <= -2 * barrier),
-            -1: lambda x: (x > -2 * barrier) & (x <= -1 * barrier),
-            # Neutral: No condition needed as it will be detected if no other barrier has been hit
-            # Positive barriers
-            1: lambda x: (x > 1 * barrier) & (x <= 2 * barrier),
-            2: lambda x: (x > 2 * barrier),
-        }
+        self.n_barriers = n_barriers
+        self.conditions = BarrierConditions(n=n_barriers, barrier=barrier).conditions
         # Caching
         self._cumulative_returns: pd.DataFrame = None
         self._labels: pd.Series = None
@@ -101,9 +93,13 @@ class TripleBarrierMethod:
         Returns:
         pandas.DataFrame: Updated barrier outcomes.
         """
-        triple_barrier.loc[triple_barrier[2].notna(), 1] = np.nan
-        triple_barrier.loc[triple_barrier[-2].notna(), -1] = np.nan
-        return triple_barrier
+        if self.n_barriers > 1:
+            # Make a copy of the DataFrame be able to check the changes after using this function
+            triple_barrier_filtered = triple_barrier.copy()  
+            for i in range(self.n_barriers, 1, -1):
+                triple_barrier_filtered.loc[triple_barrier[i].notna(), i-1] = np.nan
+                triple_barrier_filtered.loc[triple_barrier[-i].notna(), -i+1] = np.nan
+        return triple_barrier_filtered
 
     def _identify_barrier_hit(self, triple_barrier: pd.DataFrame) -> pd.DataFrame:
         """
@@ -182,6 +178,8 @@ class TripleBarrierMethod:
         return transition_probas
 
     def plot_at_date(self, date: str, months=3, figsize=(12,3)):
+        if self._labels is None:
+            raise AttributeError("The attribute 'labels' have not been calculated yet. Run .labels")
         date = pd.Timestamp(date)
         start_date = date - pd.DateOffset(months=months)
         end_date = date + pd.DateOffset(months=months)
@@ -198,12 +196,10 @@ class TripleBarrierMethod:
         index = index / index.loc[date] * 100
 
         barrier_idx = index.loc[date:].head(self.n).index
-        barriers = pd.concat([
-            pd.Series(100*(1+2*self.barrier), index=barrier_idx).rename(2),
-            pd.Series(100*(1+self.barrier), index=barrier_idx).rename(1),
-            pd.Series(100*(1+-1*self.barrier), index=barrier_idx).rename(-1),
-            pd.Series(100*(1+-2*self.barrier), index=barrier_idx).rename(-2),
-        ], axis=1)
+        barriers = []
+        for key in self.conditions.keys():
+            barriers.append(pd.Series(100*(1+key*self.barrier), index=barrier_idx).rename(key))
+        barriers = pd.concat(barriers, axis=1)
 
         # Plotting
         fig, ax = plt.subplots(figsize=figsize)
@@ -212,15 +208,18 @@ class TripleBarrierMethod:
         aut_formatter = mdates.ConciseDateFormatter(aut_locator)
 
         plt.axhline(100, c="grey", ls="--", lw=0.5)
-        plt.title(f"Triple Barrier Method for {self.returns.name} at {date.strftime('%d %b, %Y')}")
+        plt.title(f"Triple Barrier Method for {self.returns.name} at {date.strftime('%d %b, %Y')} (label = {int(self.labels.loc[date])})")
         index.plot(ax=ax)
-        barriers[2].plot(ax=ax, c="green")
-        barriers[1].plot(ax=ax, c="lightgreen")
-        plt.plot([barriers.index.min(), barriers.index.min()], [barriers[-2].min(), barriers[2].max()], ls="dotted", c="grey")
-        plt.plot([barriers.index.max(), barriers.index.max()], [barriers[-2].min(), barriers[2].max()], label=0, c="black")
-        barriers[-1].plot(ax=ax, c="lightsalmon")
-        barriers[-2].plot(ax=ax, c="salmon")
-        plt.legend(loc="upper left", bbox_to_anchor=(1, 1), frameon=False)
+
+        text_date = barriers.index.max() + pd.DateOffset(1)
+        text_spacing_y = 0.5
+        for col in barriers.columns:
+            c = "green" if col > 0 else "red"
+            barriers[col].plot(ax=ax, c=c)
+            ax.text(x=text_date, y=barriers[col].min()-text_spacing_y, s=col, style='normal', c=c)
+        ax.text(x=text_date, y=100 - text_spacing_y, s=0, c="black")
+        plt.plot([barriers.index.min(), barriers.index.min()], [barriers[-self.n_barriers].min(), barriers[self.n_barriers].max()], c="grey", ls="dotted")
+        plt.plot([barriers.index.max(), barriers.index.max()], [barriers[-self.n_barriers].min(), barriers[self.n_barriers].max()], c="black")
         ax.xaxis.set_major_locator(aut_locator)
         ax.xaxis.set_major_formatter(aut_formatter)
         ax.set_xlabel(None)
