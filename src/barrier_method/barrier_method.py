@@ -7,7 +7,15 @@ from .barrier_conditions import BarrierConditions
 
 class BarrierMethod:
     """
-    Apply the Barrier Method to financial returns data by Marcos López de Prado.
+    Apply the Barrier Method to financial returns data inspired by Marcos López de Prado.
+
+    The goal is to vectorize this method with pandas/numpy to reduce for-loops and add additional functionality:
+    - multiple barriers: Instead of having a barrier at +/-1%, we have a 2nd, 3rd,... at +/-2%, +/-3% etc.
+    - intermediate steps are returned as a pd.DataFrame that can be used for features of models:
+        - cumulative_returns
+        - time_since_last_crossing
+    - transition probabilities of the generated labels
+    - plot_at_date as plotting capabilities and a quick sanity check
 
     Attributes:
     returns (pandas.Series): Series of returns.
@@ -143,7 +151,7 @@ class BarrierMethod:
         return labels
 
     def __repr__(self):
-        return f"BarrierMethod(returns, n={self.n}, barrier={self.barrier}, center={self.center})"
+        return f"BarrierMethod(returns, n={self.n}, barrier={self.barrier}, n_barriers={self.n_barriers}, center={self.center})"
 
     @property
     def time_since_last_crossing(self) -> pd.DataFrame:
