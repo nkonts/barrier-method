@@ -28,11 +28,11 @@ class BarrierMethod:
 
     def __init__(self, returns: pd.Series, n: int, barrier: float, n_barriers: int=2, center: bool = True):
         self.returns = returns
-        self.n = n
+        self.n = int(n)
         self.barrier = barrier
         self.center = center
-        self.n_barriers = n_barriers
-        self.conditions = BarrierConditions(n=n_barriers, barrier=barrier).conditions
+        self.n_barriers = int(n_barriers)
+        self.conditions = BarrierConditions(n=self.n_barriers, barrier=barrier).conditions
         # Caching
         self._cumulative_returns: pd.DataFrame = None
         self._labels: pd.Series = None
@@ -195,6 +195,19 @@ class BarrierMethod:
         transition_probas.columns = transition_probas.columns.astype(int)
         return transition_probas
 
+    @property
+    def signals_pa(self, factor: int=252) -> float:
+        """
+        Calculate the annual frequency of label changes in the dataset
+
+        Parameters:
+        - factor (int, optional): Number of observations per year. Default is 252 (trading days).
+
+        Returns:
+        - float: Number of signals (changes) per year, based on the frequency of label changes.
+        """
+        return (self.labels != self.labels.shift()).dropna().sum() / self.labels.dropna().shape[0] * 252
+    
     def plot_at_date(self, date: str, months=3, figsize=(12,3)) -> None:
         """
         Plots the Barrier Method for a specified date.
