@@ -39,4 +39,5 @@ The traditional approach to labeling data involves a fixed-time horizon. However
 
 # Installation:
 
->pip install git+https://github.com/nkonts/barrier-method.git
+```bash
+pip install git+https://github.com/nkonts/barrier-method.git
