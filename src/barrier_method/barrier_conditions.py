@@ -1,28 +1,36 @@
-
 from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
 from typing import Dict, Callable
 
+
 @dataclass
-class PositiveCondition:
+class Condition(ABC):
     factor: float
     barrier: float
 
+    @abstractmethod
+    def evaluate(self, value: float) -> bool:
+        pass
+
+
+@dataclass
+class PositiveCondition(Condition):
     def evaluate(self, value: float) -> bool:
         return value > self.factor * self.barrier
-@dataclass
-class NegativeCondition:
-    factor: float
-    barrier: float
 
+
+@dataclass
+class NegativeCondition(Condition):
     def evaluate(self, value: float) -> bool:
         return value < -1 * self.factor * self.barrier
-    
+
+
 @dataclass
 class BarrierConditions:
     """
     A class that generates and manages barrier conditions used for different labeling techniques.
     Those conditions can be used to generate labels like this. Example for n=1:
-        y = 
+        y =
             -1 if r_{t,t+n} < -barrier,
              1 if  r_{t,t+n} > -barrier,
              0 else
@@ -31,11 +39,12 @@ class BarrierConditions:
     Attributes:
     n (int): The number of barrier conditions to be generated for negative and positive barriers.
     barrier (float): The threshold value for the barrier.
-    conditions (Dict[int, Callable[[float], bool]]): A dictionary holding condition functions for various barrier levels. Keys are sorted numerically.
+    conditions (Dict[int, Condition): A dictionary holding condition functions for various barrier levels.
+        Keys are sorted numerically.
     """
     n: int
     barrier: float
-    conditions: Dict[int, Callable[[float], bool]] = field(default_factory=dict)
+    conditions: Dict[int, Condition] = field(default_factory=dict)
 
     def __post_init__(self):
         """
@@ -43,14 +52,14 @@ class BarrierConditions:
         """
         self.generate_conditions()
         self.sort_conditions()
-    
+
     def generate_conditions(self):
         """
         Generates barrier conditions based on the specified number of conditions and threshold values.
         """
-        for i in range(1, self.n+1):
+        for i in range(1, self.n + 1):
             self.conditions[-i] = NegativeCondition(factor=i, barrier=self.barrier)
-            self.conditions[i]  = PositiveCondition(factor=i, barrier=self.barrier)
+            self.conditions[i] = PositiveCondition(factor=i, barrier=self.barrier)
 
     def sort_conditions(self):
         """
