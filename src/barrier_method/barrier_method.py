@@ -122,9 +122,14 @@ class BarrierMethod:
         Returns:
         pandas.DataFrame: Identified barrier hits.
         """
-        # .idxmin() returns np.nan if no barriers have been hit
-        # => .fillna(0) labels the "no barrier hit" condition
-        barrier = barrier.idxmin(axis=1, skipna=True).fillna(0).astype(int)
+        # pd.Series([None]).idxmax(skipna=True) now raises a FutureWarning and will throw a ValueError eventually.
+        # The solution is overly verbose, and we hope for something better.
+        # See: https://github.com/pandas-dev/pandas/pull/54226#issuecomment-1794973298
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            # .idxmin() returns np.nan if no barriers have been hit
+            # => .fillna(0) labels the "no barrier hit" condition
+            barrier = barrier.idxmin(axis=1, skipna=True).fillna(0).astype(int)
         # Correct for a possible look-ahead-bias & errors introduced by .fillna()
         barrier.iloc[-self.n:] = np.nan
         return barrier
@@ -280,4 +285,3 @@ class BarrierMethod:
         ax.set_xlabel(None)
         plt.xlim(start_date, end_date)
         plt.show()
-    
