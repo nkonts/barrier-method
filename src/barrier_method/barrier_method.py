@@ -284,4 +284,4 @@ class BarrierMethod:
         ax.xaxis.set_major_formatter(aut_formatter)
         ax.set_xlabel(None)
         plt.xlim(start_date, end_date)
-        plt.show()
+        return fig
