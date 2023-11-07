@@ -5,6 +5,7 @@ import matplotlib.dates as mdates
 import warnings
 from .barrier_conditions import BarrierConditions
 
+
 class BarrierMethod:
     """
     Apply the Barrier Method to financial returns data inspired by Marcos López de Prado.
@@ -26,7 +27,7 @@ class BarrierMethod:
                              Defaults to True.
     """
 
-    def __init__(self, returns: pd.Series, n: int, barrier: float, n_barriers: int=2, center: bool = True):
+    def __init__(self, returns: pd.Series, n: int, barrier: float, n_barriers: int = 2, center: bool = True):
         self.returns = returns
         self.n = int(n)
         self.barrier = barrier
@@ -58,7 +59,7 @@ class BarrierMethod:
             self._cumulative_returns = self._get_cumulative_returns()
         return self._cumulative_returns
 
-    def _get_cumulative_returns(self) -> None:
+    def _get_cumulative_returns(self) -> pd.DataFrame:
         cumulative_returns = {}
         for i in range(1, self.n + 1):
             cumulative_returns[i] = np.exp(np.log(self.returns + 1).rolling(i).sum().shift(-i)) - 1
@@ -84,15 +85,15 @@ class BarrierMethod:
             # Replace False with np.nan to detect the first crossing by checking for not-missing values
             # columns: [-2, -1, 1, 2] as names for the respective barriers
             barrier[label] = (barrier[label]
-                                     .replace(False, np.nan)
-                                     .apply(pd.Series.first_valid_index,axis=1)
-                                     )
+                              .replace(False, np.nan)
+                              .apply(pd.Series.first_valid_index, axis=1)
+                              )
         return pd.DataFrame(barrier)
 
     def _remove_double_barrier_crossings(self, barrier: pd.DataFrame) -> pd.DataFrame:
         """
         Remove double barrier crossings from the barrier outcomes. This happens since to cross
-        a 2nd (positive or negative) barrier, their respective 1st barrier needs to have been 
+        a 2nd (positive or negative) barrier, their respective 1st barrier needs to have been
         crossed before.
 
         Args:
@@ -103,13 +104,15 @@ class BarrierMethod:
         """
         if self.n_barriers > 1:
             # Make a copy of the DataFrame be able to check the changes after using this function
-            barrier_filtered = barrier.copy()  
+            barrier_filtered = barrier.copy()
             for i in range(self.n_barriers, 1, -1):
-                barrier_filtered.loc[barrier[i].notna(), i-1] = np.nan
-                barrier_filtered.loc[barrier[-i].notna(), -i+1] = np.nan
-        return barrier_filtered
+                barrier_filtered.loc[barrier[i].notna(), i - 1] = np.nan
+                barrier_filtered.loc[barrier[-i].notna(), -i + 1] = np.nan
+            return barrier_filtered
+        else:
+            return barrier
 
-    def _identify_barrier_hit(self, barrier: pd.DataFrame) -> pd.DataFrame:
+    def _identify_barrier_hit(self, barrier: pd.DataFrame) -> pd.Series:
         """
         Identify barrier hits from the barrier outcomes.
 
@@ -119,7 +122,7 @@ class BarrierMethod:
         Returns:
         pandas.DataFrame: Identified barrier hits.
         """
-        # .idxmin() returns np.nan if no barriers have been hit 
+        # .idxmin() returns np.nan if no barriers have been hit
         # => .fillna(0) labels the "no barrier hit" condition
         barrier = barrier.idxmin(axis=1).fillna(0).astype(int)
         # Correct for a possible look-ahead-bias & errors introduced by .fillna()
@@ -175,7 +178,7 @@ class BarrierMethod:
     @property
     def transition_probabilities(self) -> pd.DataFrame:
         """
-        Computes the transition probabilities between the different labels by dividing the frequency of transitions 
+        Computes the transition probabilities between the different labels by dividing the frequency of transitions
         by the total count in each state.
 
         Raises:
@@ -196,7 +199,7 @@ class BarrierMethod:
         return transition_probas
 
     @property
-    def signals_pa(self, factor: int=252) -> float:
+    def signals_pa(self, factor: int = 252) -> float:
         """
         Calculate the annual frequency of label changes in the dataset
 
@@ -207,8 +210,8 @@ class BarrierMethod:
         - float: Number of signals (changes) per year, based on the frequency of label changes.
         """
         return (self.labels != self.labels.shift()).dropna().sum() / self.labels.dropna().shape[0] * 252
-    
-    def plot_at_date(self, date: str, months=3, figsize=(12,3)) -> None:
+
+    def plot_at_date(self, date: str, months=3, figsize=(12, 3)) -> None:
         """
         Plots the Barrier Method for a specified date.
 
@@ -225,7 +228,7 @@ class BarrierMethod:
         """
         if self._labels is None:
             raise AttributeError("The attribute 'labels' have not been calculated yet. Run .labels")
-        
+
         date = pd.Timestamp(date)
         start_date = date - pd.DateOffset(months=months)
         end_date = date + pd.DateOffset(months=months)
@@ -235,7 +238,7 @@ class BarrierMethod:
         # Issue a warning if the selected date is not present in the index
         if date not in index.index:
             warnings.warn_explicit(
-                f"The selected date '{date.strftime('%Y-%m-%d')}' is not inside the attribute 'returns'." + 
+                f"The selected date '{date.strftime('%Y-%m-%d')}' is not inside the attribute 'returns'." +
                 f"The next available date is '{index[date:].index.min().strftime('%Y-%m-%d')}'.",
                 UserWarning, "", 1
             )
@@ -247,17 +250,18 @@ class BarrierMethod:
         barrier_idx = index.loc[date:].head(self.n).index
         barriers = []
         for key in self.conditions.keys():
-            barriers.append(pd.Series(100*(1+key*self.barrier), index=barrier_idx).rename(key))
+            barriers.append(pd.Series(100 * (1 + key * self.barrier), index=barrier_idx).rename(key))
         barriers = pd.concat(barriers, axis=1)
 
         # Plotting
         fig, ax = plt.subplots(figsize=figsize)
 
-        aut_locator = mdates.AutoDateLocator(minticks=months*2)
+        aut_locator = mdates.AutoDateLocator(minticks=months * 2)
         aut_formatter = mdates.ConciseDateFormatter(aut_locator)
 
         plt.axhline(100, c="grey", ls="--", lw=0.5)
-        plt.title(f"Barrier Method for {self.returns.name} at {date.strftime('%d %b, %Y')} (label = {int(self.labels.loc[date])})")
+        plt.title(
+            f"Barrier Method for {self.returns.name} at {date.strftime('%d %b, %Y')} (label = {int(self.labels.loc[date])})")
         index.plot(ax=ax)
 
         text_date = barriers.index.max() + pd.DateOffset(1)
@@ -265,12 +269,15 @@ class BarrierMethod:
         for col in barriers.columns:
             c = "green" if col > 0 else "red"
             barriers[col].plot(ax=ax, c=c)
-            ax.text(x=text_date, y=barriers[col].min()-text_spacing_y, s=col, style='normal', c=c)
+            ax.text(x=text_date, y=barriers[col].min() - text_spacing_y, s=col, style='normal', c=c)
         ax.text(x=text_date, y=100 - text_spacing_y, s=0, c="black")
-        plt.plot([barriers.index.min(), barriers.index.min()], [barriers[-self.n_barriers].min(), barriers[self.n_barriers].max()], c="grey", ls="dotted")
-        plt.plot([barriers.index.max(), barriers.index.max()], [barriers[-self.n_barriers].min(), barriers[self.n_barriers].max()], c="black")
+        plt.plot([barriers.index.min(), barriers.index.min()],
+                 [barriers[-self.n_barriers].min(), barriers[self.n_barriers].max()], c="grey", ls="dotted")
+        plt.plot([barriers.index.max(), barriers.index.max()],
+                 [barriers[-self.n_barriers].min(), barriers[self.n_barriers].max()], c="black")
         ax.xaxis.set_major_locator(aut_locator)
         ax.xaxis.set_major_formatter(aut_formatter)
         ax.set_xlabel(None)
         plt.xlim(start_date, end_date)
         plt.show()
+    
