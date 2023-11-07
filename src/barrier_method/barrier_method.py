@@ -124,7 +124,7 @@ class BarrierMethod:
         """
         # .idxmin() returns np.nan if no barriers have been hit
         # => .fillna(0) labels the "no barrier hit" condition
-        barrier = barrier.idxmin(axis=1).fillna(0).astype(int)
+        barrier = barrier.idxmin(axis=1, skipna=True).fillna(0).astype(int)
         # Correct for a possible look-ahead-bias & errors introduced by .fillna()
         barrier.iloc[-self.n:] = np.nan
         return barrier
